@@ -11,37 +11,30 @@ class WikiMoviesSpider(scrapy.Spider):
     ]
 
     def parse(self, response):
-        # все ссылки на фильмы на текущей странице
         links = response.css("div.mw-category a::attr(href)").getall()
 
-        # фильтруем ссылки на статьи (без двоеточия)
         links = [link for link in links if link.startswith("/wiki/") and ":" not in link]
 
-        # выбираем случайные 30
         random_links = random.sample(links, min(30, len(links)))
 
         for link in random_links:
             yield response.follow(link, callback=self.parse_movie)
 
-        # пагинация: следующая страница категории
         next_page = response.css("a:contains('Следующая страница')::attr(href)").get()
         if next_page:
             yield response.follow(next_page, callback=self.parse)
 
     def parse_movie(self, response):
-        # -------- Название --------
         title = response.xpath("//h1[@id='firstHeading']/text()").get()
         if not title:
             title = response.url.split("/")[-1]
             title = unquote(title).replace("_", " ")
         title = re.sub(r"\s*\(.*?\)", "", title).strip()
 
-        # -------- Жанр --------
         genre_links = response.xpath("//table[contains(@class,'infobox')]//td//a/text()").getall()
         genre_links = [g.strip() for g in genre_links if g.strip()]
         genre = genre_links[0] if genre_links else "Жанр не найден"
 
-        # -------- Режиссёр --------
         director_link = response.xpath(
             "//table[contains(@class,'infobox')]//tr[th[contains(translate(text(),'РЕЖИСС','режисс'),'режисс')]]/td//a/text()"
         ).get()
@@ -51,14 +44,12 @@ class WikiMoviesSpider(scrapy.Spider):
             ).get()
         director = director_link.strip() if director_link else "Нет данных"
 
-        # -------- Страна --------
         country_td = response.xpath(
             "//table[contains(@class,'infobox')]//tr[th[contains(translate(text(),'СТРАН','стра'),'стра')]]/td//text()"
         ).getall()
         country_list = [re.sub(r"\[\d+\]", "", c).strip() for c in country_td if c.strip()]
         country = country_list[0] if country_list else "Нет данных"
 
-        # -------- Год --------
         year_list = response.xpath(
             "//table[contains(@class,'infobox')]//tr[th[contains(translate(text(),'ГОД','год'),'год') or contains(translate(text(),'Дата выхода','дата выхода'),'дата выхода')]]/td//text()"
         ).getall()
@@ -73,3 +64,4 @@ class WikiMoviesSpider(scrapy.Spider):
             "Страна": country,
             "Год": year,
         }
+
